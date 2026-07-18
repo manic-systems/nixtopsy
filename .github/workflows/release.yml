@@ -15,22 +15,20 @@ jobs:
       matrix:
         include:
           - runs-on: ubuntu-24.04
-            nix-system: x86_64-linux
             artifact-name: nixtopsy-x86_64-linux
           - runs-on: ubuntu-24.04-arm
-            nix-system: aarch64-linux
             artifact-name: nixtopsy-aarch64-linux
     runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v5
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: cachix/install-nix-action@v31
         with:
-          use-flakehub: false
+          extra_nix_config: |
+            experimental-features = nix-command flakes
 
       - name: Build release binary
-        run: nix build .#nixtopsy --system ${{ matrix.nix-system }}
+        run: nix build .#nixtopsy --print-build-logs
 
       - name: Prepare artifact
         run: |

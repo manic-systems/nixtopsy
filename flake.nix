@@ -1,104 +1,137 @@
 {
   description = "Interactively dissect your Nix closures.";
 
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
-
   outputs =
-    inputs:
+    { self, ... }@args:
     let
-      inherit (inputs.nixpkgs) lib;
-      inherit (inputs) self;
+      inputs = (import ./.tack) { overrides = args.tackOverrides or { }; };
+      inherit (inputs) fenix nixpkgs;
+      inherit (nixpkgs) lib;
+      forAllSystems = lib.genAttrs (lib.systems.doubles.linux ++ lib.systems.doubles.darwin);
+      pkgsFor = system: nixpkgs.legacyPackages.${system} or (import nixpkgs { inherit system; });
 
-      eachSystem =
-        f: lib.genAttrs lib.systems.flakeExposed (system: f inputs.nixpkgs.legacyPackages.${system});
-
-      # Fenix only exposes outputs for systems where upstream Rust ships
-      # binaries. For arches without fenix coverage, we fall back to nixpkgs's
-      # bundled rustc.
-      hasFenix = system: inputs.fenix.packages ? ${system};
-
-      # mold + clang are only used on Linux tier-1 arches
-      hasMold = plat: plat.isLinux && (plat.isx86_64 || plat.isAarch64);
+      # Fenix only ships binaries for tier-1 arches, so fall back to nixpkgs's rustc
+      # everywhere else.
+      hasFenix = system: fenix.packages ? ${system};
+      rustPlatformFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        if hasFenix system then
+          pkgs.makeRustPlatform { inherit (fenix.packages.${system}.latest) cargo rustc; }
+        else
+          pkgs.rustPlatform;
     in
     {
-      packages = eachSystem (
-        pkgs:
+      packages = forAllSystems (
+        system:
         let
-          packageName = "nixtopsy";
-          inherit (pkgs.stdenv.hostPlatform) system;
-          rustPlatform =
-            if hasFenix system then
-              let
-                fenixPkgs = inputs.fenix.packages.${system};
-              in
-              pkgs.makeRustPlatform {
-                cargo = fenixPkgs.latest.cargo;
-                rustc = fenixPkgs.latest.rustc;
-              }
-            else
-              pkgs.rustPlatform;
+          pkgs = pkgsFor system;
         in
         {
-          nixtopsy = rustPlatform.buildRustPackage {
-            pname = packageName;
-            src = ./.;
-            version = "0.1.0";
-
-            cargoLock.lockFile = ./Cargo.lock;
-
-            nativeBuildInputs = lib.optionals (hasMold pkgs.stdenv.hostPlatform) [
-              pkgs.clang
-              pkgs.mold
-            ];
-
-            meta = {
-              description = "Interactively dissect your Nix closures";
-              license = lib.licenses.mit;
-              maintainers = [ lib.maintainers.amaanq ];
-              mainProgram = packageName;
-            };
-          };
-
           default = self.packages.${system}.nixtopsy;
+          nixtopsy = pkgs.callPackage ./nix/package.nix {
+            rustPlatform = rustPlatformFor system;
+          };
         }
       );
 
-      devShells = eachSystem (
-        pkgs:
+      devShells = forAllSystems (
+        system:
         let
-          inherit (pkgs.stdenv.hostPlatform) system;
+          pkgs = pkgsFor system;
           toolchain =
             if hasFenix system then
-              (inputs.fenix.packages.${system}.complete.withComponents [
+              fenix.packages.${system}.complete.withComponents [
                 "cargo"
                 "clippy"
                 "rust-src"
                 "rustc"
                 "rustfmt"
                 "rust-analyzer"
-              ])
+              ]
             else
               pkgs.rustc;
         in
         {
           default = pkgs.mkShell {
+            inputsFrom = [ self.packages.${system}.nixtopsy ];
             packages = [
+              toolchain
               pkgs.nixfmt
               pkgs.taplo
-              toolchain
-            ]
-            ++ lib.optionals (hasMold pkgs.stdenv.hostPlatform) [
-              pkgs.clang
-              pkgs.mold
             ];
           };
         }
       );
+
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+          nixtopsy = self.packages.${system}.nixtopsy;
+          rustTools =
+            if hasFenix system then
+              with fenix.packages.${system}.latest;
+              [
+                cargo
+                rustfmt
+              ]
+            else
+              [
+                pkgs.cargo
+                pkgs.rustfmt
+              ];
+          clippy = if hasFenix system then fenix.packages.${system}.latest.clippy else pkgs.clippy;
+        in
+        {
+          default = pkgs.linkFarmFromDrvs "nixtopsy-checks" [
+            nixtopsy
+            self.checks.${system}.fmt
+            self.checks.${system}.clippy
+          ];
+
+          inherit nixtopsy;
+
+          fmt =
+            pkgs.runCommand "nixtopsy-fmt-check"
+              {
+                nativeBuildInputs = rustTools ++ [
+                  pkgs.nixfmt
+                  pkgs.taplo
+                ];
+                src = ./.;
+              }
+              ''
+                cp -r $src ./tree
+                chmod -R +w ./tree
+                cd ./tree
+                cargo fmt --all -- --check
+                taplo fmt --check
+                find . -name '*.nix' -exec nixfmt --check {} +
+                touch $out
+              '';
+
+          clippy = nixtopsy.overrideAttrs (old: {
+            pname = "nixtopsy-clippy";
+            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ clippy ];
+            buildPhase = ''
+              runHook preBuild
+              cargo clippy --all-targets --offline --locked -- -D warnings
+              runHook postBuild
+            '';
+            checkPhase = "true";
+            doCheck = false;
+            installPhase = ''
+              runHook preInstall
+              touch $out
+              runHook postInstall
+            '';
+          });
+        }
+      );
+
+      formatter = forAllSystems (system: (pkgsFor system).nixfmt);
     };
 }

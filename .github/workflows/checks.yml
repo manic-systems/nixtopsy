@@ -7,26 +7,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  nix:
-    name: Build
+  check:
+    name: Check
     strategy:
+      fail-fast: false
       matrix:
-        system:
-          - runs-on: ubuntu-24.04
-            nix-system: x86_64-linux
-          - runs-on: ubuntu-24.04-arm
-            nix-system: aarch64-linux
-    runs-on: ${{ matrix.system.runs-on }}
+        os:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+          - macos-26
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
 
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: cachix/install-nix-action@v31
         with:
-          use-flakehub: false
+          extra_nix_config: |
+            experimental-features = nix-command flakes
 
-      - name: Check flake
-        run: nix flake check --system ${{ matrix.system.nix-system }}
-
-      - name: Build
-        run: nix build .#nixtopsy --system ${{ matrix.system.nix-system }}
+      - run: nix flake check --print-build-logs

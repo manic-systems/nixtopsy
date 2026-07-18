@@ -1,0 +1,18 @@
+{
+  "fenix": {
+    "type": "github",
+    "owner": "nix-community",
+    "repo": "fenix",
+    "rev": "480c95c3c9ca478e857f7153639010fb54ec73e8",
+    "narHash": "sha256-K1ym8vyrGxSZ8/SgQVyXWlBysVuJyEC5L25jPaq6PwQ=",
+    "lastModified": 1784361593
+  },
+  "nixpkgs": {
+    "type": "github",
+    "owner": "NixOS",
+    "repo": "nixpkgs",
+    "rev": "61b7c44c4073f0b827768aff0049561b5110ea5a",
+    "narHash": "sha256-12KrbMiWLcf8m7pCvAtZh1ZrgF85ZXDXvfR/fWTKy84=",
+    "lastModified": 1784356753
+  }
+}
