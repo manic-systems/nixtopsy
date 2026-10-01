@@ -2,10 +2,10 @@
   lib,
   rustPlatform,
   stdenv,
-  clang,
-  wild ? null,
+  buildPackages,
 }:
 let
+  inherit (buildPackages) clang wild;
   # wild + clang are only used on Linux tier-1 arches
   hasWild =
     stdenv.hostPlatform.isLinux && (stdenv.hostPlatform.isx86_64 || stdenv.hostPlatform.isAarch64);
@@ -23,7 +23,7 @@ rustPlatform.buildRustPackage {
   ];
 
   env = lib.optionalAttrs hasWild {
-    RUSTFLAGS = "-Clinker=${clang}/bin/clang -Clink-arg=--ld-path=wild";
+    RUSTFLAGS = "-Clinker=${clang}/bin/${clang.targetPrefix}clang -Clink-arg=--ld-path=wild";
   };
 
   meta = {
