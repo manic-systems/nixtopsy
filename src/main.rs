@@ -6,7 +6,6 @@ use std::{
    process::ExitCode,
 };
 
-use lexopt::prelude::*;
 use nixtopsy::{
    hrfsize::SizeUnits,
    stats::calculate_path_stats,
@@ -17,69 +16,48 @@ use nixtopsy::{
    },
    tui,
 };
+use pound::Parse;
 
-const HELP: &str = "Usage: nixtopsy [INSTALLABLE]... [--store STORE] [--file FILE] [--version] [--derivation] [--impure] [--si] [--dot]
-
-  Interactively dissect your Nix closures.
-
-Available options:
-  INSTALLABLE              A store path or a flake reference.
-                           Paths default to \"~/.nix-profile\" and \"/var/run/current-system\"
-  --store STORE            The URL of the Nix store, e.g. \"daemon\" or \"https://cache.nixos.org\"
-                           See \"nix help-stores\" for supported store types and settings.
-  --file FILE              Interpret installables as attribute paths relative to the Nix expression stored in file.
-  --version                Show the nixtopsy version
-  --derivation             Operate on the store derivation rather than its outputs
-  --impure                 Allow access to mutable paths and repositories
-  --si                     Show sizes in SI units (KB, MB, GB) instead of binary (KiB, MiB, GiB)
-  --dot                    Print the dependency graph in dot format
-  -h,--help                Show this help text
-
-Keybindings:
+/// Interactively dissect your Nix closures.
+#[derive(Parse, Debug)]
+#[pound(
+   name = "nixtopsy",
+   version = env!("CARGO_PKG_VERSION"),
+   after_help = "Keybindings:
   hjkl/Arrow Keys : Navigate
   w               : Open why-depends modal
   /               : Open search modal
   s               : Change sort order
   y               : Yank selected path to clipboard
   ?               : Show help
-  q/Esc           : Quit / close modal
-";
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[derive(Debug, Default)]
+  q/Esc           : Quit / close modal"
+)]
 struct Opts {
+   /// A store path or a flake reference, defaulting to the user and system
+   /// profiles.
+   #[pound(value_name = "INSTALLABLE")]
    installables: Vec<String>,
+   /// The URL of the Nix store, e.g. "daemon" or "https://cache.nixos.org".
+   ///
+   /// See "nix help-stores" for supported store types and settings.
+   #[pound(long, value_name = "STORE")]
    store:        Option<String>,
+   /// Interpret installables as attribute paths relative to the Nix expression
+   /// in FILE.
+   #[pound(long, value_name = "FILE")]
    file:         Option<String>,
-   version:      bool,
+   /// Operate on the store derivation rather than its outputs.
+   #[pound(long)]
    derivation:   bool,
+   /// Allow access to mutable paths and repositories.
+   #[pound(long)]
    impure:       bool,
+   /// Show sizes in SI units (KB, MB, GB) instead of binary (KiB, MiB, GiB).
+   #[pound(long)]
    si:           bool,
+   /// Print the dependency graph in dot format.
+   #[pound(long)]
    dot:          bool,
-}
-
-fn parse_args() -> Result<Opts, Box<dyn Error + Send + Sync>> {
-   let mut opts = Opts::default();
-   let mut parser = lexopt::Parser::from_env();
-   while let Some(arg) = parser.next()? {
-      match arg {
-         Long("store") => opts.store = Some(parser.value()?.string()?),
-         Long("file") => opts.file = Some(parser.value()?.string()?),
-         Long("version") => opts.version = true,
-         Long("derivation") => opts.derivation = true,
-         Long("impure") => opts.impure = true,
-         Long("si") => opts.si = true,
-         Long("dot") => opts.dot = true,
-         Long("help") | Short('h') => {
-            print!("{HELP}");
-            std::process::exit(0);
-         },
-         Value(v) => opts.installables.push(v.string()?),
-         _ => return Err(arg.unexpected().into()),
-      }
-   }
-   Ok(opts)
 }
 
 fn default_roots() -> Vec<String> {
@@ -119,12 +97,7 @@ fn is_valid_root(path: &PathBuf) -> bool {
 }
 
 fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
-   let opts = parse_args()?;
-
-   if opts.version {
-      println!("nixtopsy {VERSION}");
-      return Ok(());
-   }
+   let opts = Opts::parse();
 
    let installables = if opts.installables.is_empty() {
       let roots = default_roots();
