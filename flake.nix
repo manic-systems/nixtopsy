@@ -60,7 +60,7 @@
             packages = [
               toolchain
               pkgs.nixfmt
-              pkgs.taplo
+              pkgs.tombi
             ];
           };
         }
@@ -99,7 +99,7 @@
               {
                 nativeBuildInputs = rustTools ++ [
                   pkgs.nixfmt
-                  pkgs.taplo
+                  pkgs.tombi
                 ];
                 src = ./.;
               }
@@ -108,7 +108,7 @@
                 chmod -R +w ./tree
                 cd ./tree
                 cargo fmt --all -- --check
-                taplo fmt --check
+                tombi format --offline --check
                 find . -name '*.nix' -exec nixfmt --check {} +
                 touch $out
               '';
