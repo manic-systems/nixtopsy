@@ -2,7 +2,6 @@
 name         = "nixtopsy"
 version      = "0.1.0"
 edition      = "2024"
-authors      = [ "Amaan Qureshi <contact@amaanq.com>" ]
 description  = "Interactively dissect your Nix closures"
 repository   = "https://github.com/amaanq/nixtopsy"
 license      = "MIT"
