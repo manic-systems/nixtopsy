@@ -1,0 +1,17 @@
+name: Pins Update
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    uses: manic-systems/workflows/.github/workflows/pins-update.yml@ec457510b197b2eeb8b2ea2d182f31e3ed7157bd # v2.3.3
+    with:
+      client-id: ${{ vars.MANIC_BOT_CLIENT_ID }}
+    secrets:
+      private-key: ${{ secrets.MANIC_BOT_PRIVATE_KEY }}
