@@ -11,25 +11,28 @@ pub fn pretty_size(bytes: u64, units: SizeUnits) -> String {
       SizeUnits::Binary => (1024_u64, ["KiB", "MiB", "GiB", "TiB"]),
       SizeUnits::Si => (1000_u64, ["KB", "MB", "GB", "TB"]),
    };
-   let k = base;
-   let m = k * base;
-   let g = m * base;
-   let t = g * base;
-
-   let (value, unit) = if bytes < k {
+   let mut unit = base;
+   let mut suffix = suffixes[0];
+   if bytes < unit {
       return format!("{bytes}");
-   } else if bytes < m {
-      (bytes as f64 / k as f64, suffixes[0])
-   } else if bytes < g {
-      (bytes as f64 / m as f64, suffixes[1])
-   } else if bytes < t {
-      (bytes as f64 / g as f64, suffixes[2])
-   } else {
-      (bytes as f64 / t as f64, suffixes[3])
-   };
+   }
+   for &next in &suffixes[1..] {
+      if bytes < unit * base {
+         break;
+      }
+      unit *= base;
+      suffix = next;
+   }
 
-   let rounded = (value * 100.0).round() / 100.0;
-   format!("{rounded} {unit}")
+   let hundredths = (u128::from(bytes) * 100 + u128::from(unit) / 2) / u128::from(unit);
+   let (whole, frac) = (hundredths / 100, hundredths % 100);
+   if frac == 0 {
+      format!("{whole} {suffix}")
+   } else if frac % 10 == 0 {
+      format!("{whole}.{} {suffix}", frac / 10)
+   } else {
+      format!("{whole}.{frac:02} {suffix}")
+   }
 }
 
 #[cfg(test)]

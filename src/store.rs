@@ -5,6 +5,10 @@ use std::{
    },
    error::Error,
    fmt,
+   ops::{
+      Index,
+      IndexMut,
+   },
    process::{
       Command,
       Stdio,
@@ -18,7 +22,36 @@ use serde_json::{
 };
 
 /// A representation of a compact index into [`StoreEnv::paths`].
-pub type NodeId = u32;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct NodeId(usize);
+
+impl<T> Index<NodeId> for [T] {
+   type Output = T;
+
+   fn index(&self, index: NodeId) -> &T {
+      &self[index.0]
+   }
+}
+
+impl<T> IndexMut<NodeId> for [T] {
+   fn index_mut(&mut self, index: NodeId) -> &mut T {
+      &mut self[index.0]
+   }
+}
+
+impl<T> Index<NodeId> for Vec<T> {
+   type Output = T;
+
+   fn index(&self, index: NodeId) -> &T {
+      &self[index.0]
+   }
+}
+
+impl<T> IndexMut<NodeId> for Vec<T> {
+   fn index_mut(&mut self, index: NodeId) -> &mut T {
+      &mut self[index.0]
+   }
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum NixStore {
@@ -336,7 +369,7 @@ pub fn build_env(opts: &StoreEnvOptions, installables: &[String]) -> Result<Stor
    // Assign a `NodeId` to every path.
    let mut by_name = HashMap::<StoreName, NodeId>::with_capacity(all.len());
    for (i, p) in all.iter().enumerate() {
-      by_name.insert(p.name.clone(), i as NodeId);
+      by_name.insert(p.name.clone(), NodeId(i));
    }
 
    // Resolve string refs to `NodeId`s and build the final `StorePath`s.
@@ -380,7 +413,11 @@ pub fn build_env(opts: &StoreEnvOptions, installables: &[String]) -> Result<Stor
 
 impl<P> StoreEnv<P> {
    pub fn get(&self, id: NodeId) -> &StorePath<P> {
-      &self.paths[id as usize]
+      &self.paths[id]
+   }
+
+   pub fn enumerate(&self) -> impl Iterator<Item = (NodeId, &StorePath<P>)> {
+      self.paths.iter().enumerate().map(|(i, sp)| (NodeId(i), sp))
    }
 
    pub fn all(&self) -> impl Iterator<Item = &StorePath<P>> {
@@ -401,15 +438,14 @@ impl<P> StoreEnv<P> {
       let mut visited = vec![false; self.paths.len()];
       let mut stack = starts.iter().rev().copied().collect::<Vec<NodeId>>();
       while let Some(id) = stack.pop() {
-         let idx = id as usize;
-         if visited[idx] || !predicate(id) {
+         if visited[id] || !predicate(id) {
             continue;
          }
-         visited[idx] = true;
-         let sp = &self.paths[idx];
+         visited[id] = true;
+         let sp = &self.paths[id];
          acc.push(sp);
          for &r in sp.refs.iter().rev() {
-            if !visited[r as usize] {
+            if !visited[r] {
                stack.push(r);
             }
          }
@@ -448,19 +484,19 @@ where
    while let Some(frame) = stack.pop() {
       match frame {
          Frame::Enter(id) => {
-            if new_payloads[id as usize].is_some() {
+            if new_payloads[id].is_some() {
                continue;
             }
             let sp = env.get(id);
             stack.push(Frame::Exit(id));
             for &r in sp.refs.iter().rev() {
-               if new_payloads[r as usize].is_none() {
+               if new_payloads[r].is_none() {
                   stack.push(Frame::Enter(r));
                }
             }
          },
          Frame::Exit(id) => {
-            if new_payloads[id as usize].is_some() {
+            if new_payloads[id].is_some() {
                continue;
             }
             let sp = env.get(id);
@@ -468,13 +504,13 @@ where
                .refs
                .iter()
                .map(|&r| {
-                  new_payloads[r as usize]
+                  new_payloads[r]
                      .as_ref()
                      .expect("invariant: child not computed")
                })
                .collect::<Vec<&B>>();
             let payload = f(id, sp, &child_payloads);
-            new_payloads[id as usize] = Some(payload);
+            new_payloads[id] = Some(payload);
          },
       }
    }

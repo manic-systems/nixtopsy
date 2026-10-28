@@ -33,11 +33,11 @@ fn intermediate_refs(env: &StoreEnv<()>) -> Vec<HashMap<NodeId, u64>> {
       let mut combined = HashMap::<NodeId, u64>::new();
       for &r in &sp.refs {
          combined.insert(r, env.get(r).size);
-         for (k, v) in &all_refs[r as usize] {
+         for (k, v) in &all_refs[r] {
             combined.insert(*k, *v);
          }
       }
-      all_refs[id as usize] = combined;
+      all_refs[id] = combined;
    });
 
    all_refs
@@ -47,7 +47,7 @@ fn calculate_env_size(env: &StoreEnv<()>, refs: &[HashMap<NodeId, u64>]) -> u64 
    let mut combined = HashMap::<NodeId, u64>::new();
    for &root in &env.roots {
       combined.insert(root, env.get(root).size);
-      for (k, v) in &refs[root as usize] {
+      for (k, v) in &refs[root] {
          combined.insert(*k, *v);
       }
    }
@@ -58,10 +58,9 @@ fn immediate_parents_map(env: &StoreEnv<()>) -> Vec<BTreeSet<NodeId>> {
    let mut m = std::iter::repeat_with(BTreeSet::<NodeId>::new)
       .take(env.paths.len())
       .collect::<Vec<_>>();
-   for (parent_id, sp) in env.paths.iter().enumerate() {
-      let parent_id = parent_id as NodeId;
+   for (parent_id, sp) in env.enumerate() {
       for &r in &sp.refs {
-         m[r as usize].insert(parent_id);
+         m[r].insert(parent_id);
       }
    }
    m
@@ -72,12 +71,9 @@ fn disambiguation_chars(env: &StoreEnv<()>) -> Vec<usize> {
    // (step of 2) such that `short_with_disambiguation(n)` makes all names in
    // the bucket distinct.
    let mut by_short = HashMap::<String, Vec<NodeId>>::new();
-   for (id, sp) in env.paths.iter().enumerate() {
+   for (id, sp) in env.enumerate() {
       let (_, short) = sp.name.split_short();
-      by_short
-         .entry(short.to_string())
-         .or_default()
-         .push(id as NodeId);
+      by_short.entry(short.to_string()).or_default().push(id);
    }
 
    let mut out = vec![0_usize; env.paths.len()];
@@ -85,7 +81,7 @@ fn disambiguation_chars(env: &StoreEnv<()>) -> Vec<usize> {
       let names = ids.iter().map(|&id| &env.get(id).name).collect::<Vec<_>>();
       let n = disambiguate(&names);
       for &id in ids {
-         out[id as usize] = n;
+         out[id] = n;
       }
    }
    out
@@ -125,17 +121,14 @@ pub fn calculate_path_stats(env: &StoreEnv<()>) -> StoreEnv<PathStats> {
    bottom_up::<_, PathStats, _>(env, |id, sp, _children| {
       // Closure size = own size + sum of all transitive refs.
       let own = sp.size;
-      let transitive = refs[id as usize].values().sum::<u64>();
+      let transitive = refs[id].values().sum::<u64>();
 
       // Added size = total - size of graph excluding this node.
       let excluded = fetch_refs_size(env, id);
       let added = total.saturating_sub(excluded);
 
-      let immediate = parents[id as usize]
-         .iter()
-         .copied()
-         .collect::<Vec<NodeId>>();
-      let chars = disamb[id as usize];
+      let immediate = parents[id].iter().copied().collect::<Vec<NodeId>>();
+      let chars = disamb[id];
 
       PathStats {
          total_size:           own + transitive,
@@ -167,26 +160,26 @@ pub fn shortest_path_to(env: &StoreEnv<PathStats>, target: NodeId) -> Vec<NodeId
 
 fn bfs_path<P>(env: &StoreEnv<P>, root: NodeId, target: NodeId) -> Option<Vec<NodeId>> {
    let n = env.paths.len();
-   let mut prev = vec![NodeId::MAX; n];
+   let mut prev = vec![Option::<NodeId>::None; n];
    let mut visited = vec![false; n];
    let mut queue = VecDeque::<NodeId>::new();
    queue.push_back(root);
-   visited[root as usize] = true;
+   visited[root] = true;
    while let Some(id) = queue.pop_front() {
       if id == target {
          let mut path = vec![id];
          let mut cur = id;
-         while prev[cur as usize] != NodeId::MAX {
-            cur = prev[cur as usize];
+         while let Some(parent) = prev[cur] {
+            cur = parent;
             path.push(cur);
          }
          path.reverse();
          return Some(path);
       }
       for &r in &env.get(id).refs {
-         if !visited[r as usize] {
-            visited[r as usize] = true;
-            prev[r as usize] = id;
+         if !visited[r] {
+            visited[r] = true;
+            prev[r] = Some(id);
             queue.push_back(r);
          }
       }
@@ -207,11 +200,11 @@ pub fn why_depends(env: &StoreEnv<PathStats>, target: NodeId) -> Vec<Vec<NodeId>
    {
       let mut queue = std::collections::VecDeque::<NodeId>::new();
       queue.push_back(target);
-      reaches_target[target as usize] = true;
+      reaches_target[target] = true;
       while let Some(id) = queue.pop_front() {
          for &p in &env.get(id).payload.immediate_parents {
-            if !reaches_target[p as usize] {
-               reaches_target[p as usize] = true;
+            if !reaches_target[p] {
+               reaches_target[p] = true;
                queue.push_back(p);
             }
          }
@@ -226,7 +219,7 @@ pub fn why_depends(env: &StoreEnv<PathStats>, target: NodeId) -> Vec<Vec<NodeId>
       if subtree_count >= 10_000 {
          break;
       }
-      if !reaches_target[root as usize] {
+      if !reaches_target[root] {
          continue;
       }
       let before = out.len();
@@ -264,7 +257,7 @@ fn collect_paths<P>(
 
       // Find the next child that can reach `target`. Pruning here is what
       // keeps the cap accurate: dead branches don't consume budget.
-      let next = (idx..refs.len()).find(|&i| reaches_target[refs[i] as usize]);
+      let next = (idx..refs.len()).find(|&i| reaches_target[refs[i]]);
       let Some(next_idx) = next else {
          path.pop();
          frames.pop();

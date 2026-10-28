@@ -201,8 +201,8 @@ pub struct App {
 impl App {
    pub fn new(env: StoreEnv<PathStats>, units: SizeUnits) -> Self {
       let mut idx = InvertedIndex::<NodeId>::new();
-      for (id, sp) in env.paths.iter().enumerate() {
-         idx.insert(sp.name.name.clone(), id as NodeId);
+      for (id, sp) in env.enumerate() {
+         idx.insert(sp.name.name.clone(), id);
       }
 
       let default_sort = SortOrder::ClosureSize;
@@ -594,7 +594,7 @@ fn handle_modal_key(app: &mut App, key: KeyEvent) -> bool {
                if let Some(idx) = state.selected()
                   && let Some(p) = paths.get(idx)
                {
-                  h_scroll = path_display_len(&app.env, p) as u16;
+                  h_scroll = u16::try_from(path_display_len(&app.env, p)).unwrap_or(u16::MAX);
                }
                app.modal = Some(Modal::WhyDepends {
                   paths,
@@ -791,7 +791,7 @@ fn draw_panes(f: &mut Frame, area: Rect, app: &mut App) {
    let inner = block.inner(area);
    f.render_widget(block, area);
 
-   app.last_page_size = inner.height as usize;
+   app.last_page_size = usize::from(inner.height);
 
    let cols = Layout::default()
       .direction(Direction::Horizontal)
@@ -843,7 +843,7 @@ fn draw_panes(f: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_vbar(f: &mut Frame, area: Rect) {
    let lines = std::iter::repeat_with(|| Line::from(Span::raw("│")))
-      .take(area.height as usize)
+      .take(usize::from(area.height))
       .collect::<Vec<Line>>();
    f.render_widget(Paragraph::new(lines), area);
 }
@@ -940,7 +940,7 @@ fn build_row(
    let prefix_width = sig_prefix.chars().count();
 
    let pad_target =
-      (width as usize).saturating_sub(prefix_width + label_width + size_visible_width + 1);
+      usize::from(width).saturating_sub(prefix_width + label_width + size_visible_width + 1);
    let padding = " ".repeat(pad_target.max(1));
 
    let mut spans = Vec::<Span<'static>>::new();
@@ -1094,7 +1094,7 @@ fn render_path_line(env: &StoreEnv<PathStats>, path: &[NodeId], h_scroll: u16) -
          full.push_str(" → ");
       }
    }
-   let skip = h_scroll as usize;
+   let skip = usize::from(h_scroll);
    let visible = full.chars().skip(skip).collect::<String>();
    Line::from(visible)
 }
