@@ -123,6 +123,7 @@
             '';
             checkPhase = "true";
             doCheck = false;
+            postInstall = "";
             installPhase = ''
               runHook preInstall
               touch $out

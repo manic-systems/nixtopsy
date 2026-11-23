@@ -62,6 +62,19 @@ nix eval --raw 'nixpkgs#<some-package>.outPath' \
   | xargs -o nixtopsy --store https://cache.nixos.org
 ```
 
+## Shell Completions
+
+The Nix package installs completions for Bash, Zsh, Fish and Nushell. To set
+completions up by hand, source the script nixtopsy prints.
+
+| Shell  | Setup                                                            |
+|--------|------------------------------------------------------------------|
+| bash   | `source <(COMPLETE=bash nixtopsy)`                               |
+| zsh    | `COMPLETE=zsh nixtopsy > ~/.zfunc/_nixtopsy`, with it in `fpath` |
+| fish   | `COMPLETE=fish nixtopsy \| source`                               |
+| nu     | `COMPLETE=nu nixtopsy \| save nixtopsy.nu`, then `source` it     |
+| elvish | `eval (env COMPLETE=elvish nixtopsy \| slurp)`                   |
+
 ## Keybindings
 
 | Key             | Action                                                      |

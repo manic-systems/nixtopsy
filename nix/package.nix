@@ -3,6 +3,7 @@
   rustPlatform,
   stdenv,
   buildPackages,
+  installShellFiles,
 }:
 let
   inherit (buildPackages) clang wild;
@@ -17,7 +18,10 @@ rustPlatform.buildRustPackage {
   src = ../.;
   cargoLock.lockFile = ../Cargo.lock;
 
-  nativeBuildInputs = lib.optionals hasWild [
+  nativeBuildInputs = [
+    installShellFiles
+  ]
+  ++ lib.optionals hasWild [
     wild
     clang
   ];
@@ -25,6 +29,19 @@ rustPlatform.buildRustPackage {
   env = lib.optionalAttrs hasWild {
     RUSTFLAGS = "-Clinker=${clang}/bin/${clang.targetPrefix}clang -Clink-arg=--ld-path=wild";
   };
+
+  postInstall = lib.optionalString (stdenv.hostPlatform.emulatorAvailable buildPackages) (
+    let
+      nixtopsy = "${stdenv.hostPlatform.emulator buildPackages} $out/bin/nixtopsy";
+    in
+    ''
+      installShellCompletion --cmd nixtopsy \
+        --bash    <(COMPLETE=bash ${nixtopsy}) \
+        --zsh     <(COMPLETE=zsh  ${nixtopsy}) \
+        --fish    <(COMPLETE=fish ${nixtopsy}) \
+        --nushell <(COMPLETE=nu   ${nixtopsy})
+    ''
+  );
 
   meta = {
     description = "Interactively dissect your Nix closures";
