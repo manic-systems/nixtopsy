@@ -134,6 +134,8 @@ fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
 }
 
 fn main() -> ExitCode {
+   caress::handle(Opts::SPEC);
+
    match run() {
       Ok(()) => ExitCode::SUCCESS,
       Err(e) => {

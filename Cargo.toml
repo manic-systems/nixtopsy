@@ -15,6 +15,7 @@ name = "nixtopsy"
 path = "src/main.rs"
 
 [dependencies]
+caress     = "0.3.0"
 crossterm  = "0.29.0"
 pound      = "0.6.1"
 ratatui    = { version = "0.30.0", default-features = false, features = [ "crossterm" ] }
