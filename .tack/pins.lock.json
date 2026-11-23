@@ -1,18 +1,24 @@
 {
+  "$declared": {
+    "fenix": "github:nix-community/fenix",
+    "nixpkgs": "github:NixOS/nixpkgs/nixos-unstable"
+  },
   "fenix": {
     "type": "github",
     "owner": "nix-community",
     "repo": "fenix",
-    "rev": "480c95c3c9ca478e857f7153639010fb54ec73e8",
-    "narHash": "sha256-K1ym8vyrGxSZ8/SgQVyXWlBysVuJyEC5L25jPaq6PwQ=",
-    "lastModified": 1784361593
+    "rev": "012c1a71bd93921f320def3d0e586cc4dd332b65",
+    "narHash": "sha256-Rk0Z2OtU3NPrptAuqH1X5IqCAneX/qAdhwUhb2c4K7M=",
+    "lastModified": 1795357327,
+    "public": true
   },
   "nixpkgs": {
     "type": "github",
     "owner": "NixOS",
     "repo": "nixpkgs",
-    "rev": "61b7c44c4073f0b827768aff0049561b5110ea5a",
-    "narHash": "sha256-12KrbMiWLcf8m7pCvAtZh1ZrgF85ZXDXvfR/fWTKy84=",
-    "lastModified": 1784356753
+    "rev": "2786a2a72088ecf32aea5b3ec52099e6a7cff78f",
+    "narHash": "sha256-f/VVvxf5RsQgWVhUtefoca5ktVg0DA2bnkMOcmSnozo=",
+    "lastModified": 1795234589,
+    "public": true
   }
 }
